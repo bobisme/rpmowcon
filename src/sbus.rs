@@ -7,7 +7,7 @@ const PACKET_SIZE: usize =
 const BIT_MASK: u16 = (1 << 11) - 1;
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, defmt::Format)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, defmt::Format, Default)]
 pub struct Chan(u16);
 
 impl Chan {
@@ -32,27 +32,35 @@ pub const fn chan(val: u16) -> Chan {
     Chan::new(val)
 }
 
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, defmt::Format)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, defmt::Format, Default)]
 pub struct Data {
-    channels: [Chan; 16],
+    pub channels: [Chan; 16],
+    pub ch_17: bool,
+    pub ch_18: bool,
+    pub frame_lost: bool,
+    pub failsafe: bool,
 }
 
 impl Data {
-    pub fn channels(&self) -> &[Chan; 16] {
-        &self.channels
+    pub const fn from_packet(packet: &[u8; PACKET_SIZE]) -> Self {
+        let flag_byte = packet[PACKET_SIZE - 2];
+        Self {
+            channels: read_chans(packet.as_slice()),
+            ch_17: (flag_byte & 0b1) > 0,
+            ch_18: (flag_byte & 0b10) > 0,
+            frame_lost: (flag_byte & 0b100) > 0,
+            failsafe: (flag_byte & 0b1000) > 0,
+        }
     }
 }
 
-#[inline(always)]
+#[inline]
 const fn idx(i: usize, packet: &[u8]) -> u16 {
-    // 1 for header
     packet[PACKET_PADDING_SIZE + PACKET_HEADER_SIZE + i] as u16
 }
 
-#[inline(always)]
+#[inline]
 const fn idx11(i: usize, packet: &[u8]) -> u16 {
-    // 1 for header
     packet[PACKET_PADDING_SIZE + PACKET_HEADER_SIZE + 11 + i] as u16
 }
 
@@ -127,6 +135,21 @@ const _: () = {
     debug_assert!(actual[13].0 == 14);
     debug_assert!(actual[14].0 == 15);
     debug_assert!(actual[15].0 == 16);
+
+    const fn new_packet(flag_byte: u8) -> [u8; PACKET_SIZE] {
+        let mut packet = [0u8; PACKET_SIZE];
+        packet[PACKET_SIZE - 2] = flag_byte;
+        packet
+    }
+
+    assert!(!Data::from_packet(&new_packet(0b1110)).ch_17);
+    assert!(Data::from_packet(&new_packet(0b0001)).ch_17);
+    assert!(!Data::from_packet(&new_packet(0b1101)).ch_18);
+    assert!(Data::from_packet(&new_packet(0b0010)).ch_18);
+    assert!(!Data::from_packet(&new_packet(0b1011)).frame_lost);
+    assert!(Data::from_packet(&new_packet(0b0100)).frame_lost);
+    assert!(!Data::from_packet(&new_packet(0b0111)).failsafe);
+    assert!(Data::from_packet(&new_packet(0b1000)).failsafe);
 };
 
 #[derive(Debug)]
@@ -170,9 +193,7 @@ impl Receiver {
             self.reset();
             return None;
         }
-        let data = Data {
-            channels: read_chans(&self.packet[..]),
-        };
+        let data = Data::from_packet(&self.packet);
         self.reset();
         Some(data)
     }
