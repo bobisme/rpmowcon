@@ -19,7 +19,7 @@ impl Button {
 #[derive(Clone, Copy, Debug, defmt::Format, Default)]
 pub struct Axis {
     /// From -1.0 to 1.0
-    val: f32,
+    pub val: f32,
 }
 
 impl Axis {
@@ -47,8 +47,8 @@ impl Eq for Axis {}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, defmt::Format, Default)]
 pub struct Stick {
-    x: Axis,
-    y: Axis,
+    pub x: Axis,
+    pub y: Axis,
 }
 
 impl Stick {
@@ -85,12 +85,12 @@ impl ThreeWay {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, defmt::Format, Default)]
 pub struct RadioLinkController {
-    left_thumb: Stick,
-    left_shoulder: Axis,
-    left_trigger: ThreeWay,
-    right_thumb: Stick,
-    right_shoulder: Button,
-    right_trigger: ThreeWay,
+    pub left_thumb: Stick,
+    pub left_shoulder: Axis,
+    pub left_trigger: ThreeWay,
+    pub right_thumb: Stick,
+    pub right_shoulder: Button,
+    pub right_trigger: ThreeWay,
 }
 
 impl RadioLinkController {
